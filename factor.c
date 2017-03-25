@@ -1,4 +1,4 @@
-
+#include<sys/mman.h>
 #include <pthread.h>
 #include <stdlib.h>
 #include <assert.h>
@@ -16,21 +16,42 @@ static queue* iqueue;
 static queue* oqueue;
 
 static int worker_count = 0;
-static pid_t workers[64];
-static pid_t printer;
+//static pid_t workers[64];
+//static pid_t printer;
+
+shq* shared = 0;
+
+void
+shared_init() {
+	shared = mmap(0, 1024 * 1024, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+	shared->iqueue = make_queue();
+	shared->oqueue = make_queue();
+	sem_init(&(shared->isem_items), 1, 0);
+	sem_init(&(shared->osem_items), 1, 0);
+    sem_init(&(shared->isem_space), 1, QUEUE_SIZE);
+    sem_init(&(shared->osem_space), 1, QUEUE_SIZE);
+
+}
 
 void
 work_off_jobs()
 {
     while (1) {
-        job jj = queue_get(iqueue);
+		int rv = sem_wait(&(shared->isem_items));
+		assert(rv == 0);
+        job jj = queue_get(shared->iqueue);
+		rv = sem_post(&(shared->isem_space));
+		assert(rv == 0);
         if (jj.number < 0) {
             break;
         }
 
         factor(jj.number, &(jj.count), &(jj.factors[0]));
-
-        queue_put(oqueue, jj);
+		rv = sem_wait(&(shared->osem_space));
+		assert(rv == 0);
+        queue_put(shared->oqueue, jj);
+		rv = sem_post(&(shared->osem_items));
+		assert(rv == 0);
     }
 }
 
@@ -39,8 +60,16 @@ print_results(int64_t count)
 {
     int64_t oks = 0;
 
-    for (int64_t ii = 0; ii < count; ++ii) {
+	while (1) {
+		int rv = sem_wait(&(shared->osem_items));
+		assert(rv == 0);
+
         job res = get_result();
+		rv = sem_post(&(shared->osem_space));
+		
+		if (res.number == -1) {
+			break;
+		}
 
         printf("%ld: ", res.number);
         int64_t prod = 1;
@@ -78,32 +107,49 @@ factor_init(int num_procs, int64_t count)
 }
 
 void
-factor_cleanup()
+factor_cleanup(int kids[], int procs)
 {
     job done = make_job(-1);
 
-    for (int ii = 0; ii < worker_count; ++ii) {
+    for (int ii = 0; ii < procs; ++ii) {
         submit_job(done);
     }
 
-    // FIXME: Make sure all the workers are done.
+	for (int i = 0; i < procs; i++) {
+		int status;
+		waitpid(kids[i], &status, 0);
+	}
 
-    free_queue(iqueue);
-    iqueue = 0;
-    free_queue(oqueue);
-    oqueue = 0;
+	int rv = sem_wait(&(shared->osem_space));
+	assert(rv == 0);
+	queue_put(shared->oqueue, done);
+	rv = sem_post(&(shared->osem_items));
+	assert(rv == 0);
+	
+
+    // FIXME: Make sure all the workers are done.
+	int status;
+	waitpid(kids[procs + 1], &status, 0);
+
+
+    free_queue(shared->iqueue);
+    free_queue(shared->oqueue);
 }
 
 void
 submit_job(job jj)
 {
-    queue_put(iqueue, jj);
+	int rv = sem_wait(&(shared->isem_space));
+	assert(rv == 0);
+    queue_put(shared->iqueue, jj);
+	rv = sem_post(&(shared->isem_items));
+	assert(rv == 0);
 }
 
 job
 get_result()
 {
-    return queue_get(oqueue);
+    return queue_get(shared->oqueue);
 }
 
 static

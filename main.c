@@ -1,13 +1,12 @@
-
+#include <unistd.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <assert.h>
-
+#include <semaphore.h>
 #include "job.h"
 #include "factor.h"
-
-typedef struct shq {
-	int64_t queue[QUEUE_SIZE]
+#include "queue.h"
+extern shq* shared;
 
 int
 main(int argc, char* argv[])
@@ -18,33 +17,34 @@ main(int argc, char* argv[])
         return 1;
     }
 
-	shared = mmap(
+	shared_init();
 
     int procs = atoi(argv[1]);
-    assert(procs == 1); // FIXME: Support multiple procs
-
+	int kids[procs + 1];
     int64_t start = atol(argv[2]);
     int64_t count = atol(argv[3]);
 
-    factor_init(procs, count);
+	for (int i = 0; i < procs; i++) {
+		kids[i] = fork();
+		if (kids[i] == 0) {
+			work_off_jobs();
+			exit(1);
+		}
+	}
+
+	kids[procs + 1] = fork();
+	if (kids[procs + 1] == 0) {
+		print_results(count);
+		exit(1);
+	}
 
     for (int64_t ii = 0; ii < count; ++ii) {
         job jj = make_job(start + ii);
         submit_job(jj);
     }
-
-    // FIXME: These next two lines shouldn't be here.
-    job jj = make_job(-1); 
-    submit_job(jj);
-
-    // FIXME: This should happen in worker processes.
-    work_off_jobs();
-
-    // FIXME: This should happen in dedicated printer process.
-    print_results(count);
-
-    factor_wait_done();
-    factor_cleanup();
+	
+    //factor_wait_done(kids, procs);
+    factor_cleanup(kids, procs);
 
     return 0;
 }

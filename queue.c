@@ -9,11 +9,14 @@
 
 // TODO: Make this an interprocess queue.
 
+
 queue*
 make_queue()
 {
     int pages = 1 + sizeof(queue) / 4096;
-    queue* qq = malloc(pages * 4096); // FIXME: Queue should be shared.
+    queue* qq = mmap(NULL, pages * 4096, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+	qq->qii = 0;
+	qq->qjj = 0;
     return qq;
 }
 
@@ -21,7 +24,7 @@ void
 free_queue(queue* qq)
 {
     assert(qq->qii == qq->qjj);
-    free(qq);
+    munmap(qq, 1 + sizeof(queue) / 4096);
 }
 
 void

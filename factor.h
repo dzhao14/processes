@@ -5,6 +5,8 @@
 
 #include "job.h"
 
+void shared_init();
+
 void submit_job(job jj);
 job  get_result();
 

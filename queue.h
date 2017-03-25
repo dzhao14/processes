@@ -15,6 +15,15 @@ typedef struct queue {
     atomic unsigned int qjj; // Output index.
 } queue;
 
+typedef struct shq {
+    queue* iqueue;
+    queue* oqueue;
+    sem_t isem_items;
+    sem_t isem_space;
+    sem_t osem_items;
+    sem_t osem_space;
+} shq;
+
 queue* make_queue();
 void   free_queue(queue* qq);
 
