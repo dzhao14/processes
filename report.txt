@@ -1,0 +1,36 @@
+David Zhao hw09 report
+
+Tested factorizing 50 numbers starting at 4611686018427387904.
+Tested 3 times for 1, 4, and 16 processes. Took the median of each group of 3 runs.
+
+Got the following results:
+
+==========================================
+| 1 process | 4 processes | 16 processes |
+==========================================
+| 37.76 sec | 13.35 sec   | 8.78 sec     |
+=========================================
+
+The parallel speed up for the 4 processes was 2.85.
+The parallel speed up for the 16 processes was 4.30.
+
+These results seem reasonable because the 16 process test was faster than the 4 process which was faster than the single process test. My guess as to why the parallel speed ups weren't 'ideal' 4x and 16x is because the more processes spawened the more network usage is needed to connect the separate cores in the server. Another reason might be because the server isn't actually using all its cores and it might put two or more processes on a single core. Since I don't know what exactly goes on in the CCIS server these are my two guesses.
+
+
+To compare how processes fare versus threads I also tested the following:
+Tested factorizing 50 numbers starting at 4611686018427387904.
+Tested 3 times for 1, 4, and 16 threads. Took the median of each group of 3 runs.
+
+Got the following results:
+
+=====================================
+| 1 thread | 4 threads | 16 threads |
+=====================================
+| 66.39 s  | 26.14 s   | 16.84 s    |
+=====================================
+
+The parallel speed up for the 4 threads was 2.54
+The parallel speed up for the 16 threads was 3.94
+
+So here it is clear that processes are both faster time wise and they offer a better parallel speed up. My guess as to why processes are faster than threads is because on a multi process machine, like the ccis server, it will be faster to NOT share memory since if memory is shared there is a synchornizing cost involed with shared memory. So when threads are created since the stack frames aren't copied the machine must deal with keeping the stack memory the same when changing between threads. But to be honest this is just a guess.
+
